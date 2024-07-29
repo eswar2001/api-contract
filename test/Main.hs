@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving,DeriveDataTypeable #-}
 
 module Main (main) where
 
@@ -15,6 +16,7 @@ import Data.Aeson
 import Data.Text
 import GHC.Generics (Generic)
 import Data.Aeson.KeyMap
+import Data.Data
 
 
 main :: IO ()
@@ -29,6 +31,8 @@ data RefundAttempt = RefundAttempt
  , last_modified     :: Maybe Text
  }
  deriving (Show, Eq, Generic)
+
+deriving instance Data RefundAttempt
 
 instance ToJSON RefundAttempt where
 --  toJSON RefundAttempt{..} = Data.Aeson.object $ mconcat [[

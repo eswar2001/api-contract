@@ -47,15 +47,15 @@
           imports = [
           ];
           packages = {
-          streamly-core.source = inputs.streamly + /core;
-          large-records.source = inputs.large-records + /large-records;
-          large-generics.source = inputs.large-records + /large-generics;
-          large-anon.source = inputs.large-records + /large-anon;
-          typelet.source = inputs.large-records + /typelet;
-          beam-large-records.source = inputs.large-records + /beam-large-records;
-          ghc-hasfield-plugin.source = inputs.ghc-hasfield-plugin;
-          references.source = inputs.references;
-          classyplate.source = inputs.classyplate;
+            streamly-core.source = inputs.streamly + /core;
+            large-records.source = inputs.large-records + /large-records;
+            large-generics.source = inputs.large-records + /large-generics;
+            large-anon.source = inputs.large-records + /large-anon;
+            typelet.source = inputs.large-records + /typelet;
+            beam-large-records.source = inputs.large-records + /beam-large-records;
+            ghc-hasfield-plugin.source = inputs.ghc-hasfield-plugin;
+            references.source = inputs.references;
+            classyplate.source = inputs.classyplate;
           };
           settings = {
           };

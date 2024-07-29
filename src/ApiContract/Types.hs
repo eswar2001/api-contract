@@ -56,9 +56,12 @@ data InstanceFromTC = InstanceFromTC
    }
    deriving (Show, Generic,FromJSON,ToJSON)
 
+
 data ApiContractError =
     -- fieldName typeName
-    MISSING_FIELD String String
+    MISSING_FIELD_IN_RULES String String
+    -- fieldName typeName
+    | MISSING_FIELD_IN_CODE String String
     -- fieldName expectedType typeFromCode typeName
     | TYPE_MISMATCH String String String String
     -- dataConName typeName
@@ -66,11 +69,53 @@ data ApiContractError =
     -- typeName fieldName caseType
     | FIELD_CASE_MISMATCH String String CaseType
     -- typeName
-    | MISSNNG_TYPE String
+    | MISSING_TYPE String
     -- typeName instanceName
     | MISSING_INSTANCE String String
     -- typeName instanceName typeOfInsance
     | TYPE_OF_INSTANCE_CHANGED String String TypeOfInstance
     -- typeName instanceName fieldName
-    | MISSING_FIELD_IN_INSTANCE String String String
+    | MISSING_FIELD_IN_INSTANCE_CODE String String String
+    -- typeName instanceName fieldName
+    | MISSING_FIELD_IN_INSTANCE_RULES String String String
     deriving (Eq,Show, Generic,FromJSON,ToJSON)
+
+generateErrorMessage :: FilePath -> ApiContractError -> String
+generateErrorMessage yamlFilePath (MISSING_FIELD_IN_RULES fieldName typeName) =
+    "Error: The field '" ++ fieldName ++ "' is missing in the rules for type '" ++ typeName ++ "'.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the field under the appropriate type's fields section."
+generateErrorMessage yamlFilePath (MISSING_FIELD_IN_CODE fieldName typeName) =
+    "Error: The field '" ++ fieldName ++ "' is missing in the code for type '" ++ typeName ++ "'.\n\n" ++
+    "\tPlease add the field '" ++ fieldName ++ "' to the type '" ++ typeName ++ "' in your code."
+generateErrorMessage yamlFilePath (TYPE_MISMATCH fieldName expectedType typeFromCode typeName) =
+    "Error: Type mismatch for field '" ++ fieldName ++ "' in type '" ++ typeName ++ "'. Expected type: '" ++ expectedType ++ "', but found: '" ++ typeFromCode ++ "'.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tChange the type of the field '" ++ fieldName ++ "' to '" ++ expectedType ++ "' under the appropriate type's fields section."
+generateErrorMessage yamlFilePath (MISSING_DATACON dataConName typeName) =
+    "Error: The data constructor '" ++ dataConName ++ "' is missing in type '" ++ typeName ++ "'.\n\n" ++
+    "Please add the data constructor '" ++ dataConName ++ "' to the type '" ++ typeName ++ "' in your code."
+generateErrorMessage yamlFilePath (FIELD_CASE_MISMATCH typeName fieldName caseType) =
+    "Error: Field name case mismatch for field '" ++ fieldName ++ "' in type '" ++ typeName ++ "'. Expected case: " ++ show caseType ++ ".\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tChange the field name to follow the " ++ show caseType ++ " convention under the appropriate type's fields section."
+generateErrorMessage yamlFilePath (MISSING_TYPE typeName) =
+    "Error: The type '" ++ typeName ++ "' is missing.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the type '" ++ typeName ++ "' to the types section."
+generateErrorMessage yamlFilePath (MISSING_INSTANCE typeName instanceName) =
+    "Error: The instance '" ++ instanceName ++ "' is missing for type '" ++ typeName ++ "'.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the instance '" ++ instanceName ++ "' under the appropriate type's instances section."
+generateErrorMessage yamlFilePath (TYPE_OF_INSTANCE_CHANGED typeName instanceName typeOfInstance) =
+    "Error: The type of instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "' has changed to " ++ show typeOfInstance ++ ".\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tChange the type of the instance '" ++ instanceName ++ "' under the appropriate type's instances section."
+generateErrorMessage yamlFilePath (MISSING_FIELD_IN_INSTANCE_CODE typeName instanceName fieldName) =
+    "Error: The field '" ++ fieldName ++ "' is missing in the instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "'.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."
+generateErrorMessage yamlFilePath (MISSING_FIELD_IN_INSTANCE_RULES typeName instanceName fieldName) =
+    "Error: The field '" ++ fieldName ++ "' is missing in rules in instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "'.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."

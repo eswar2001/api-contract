@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
-
+{-# LANGUAGE RecordWildCards #-}
 
 module ApiContract.Plugin where
 
@@ -207,6 +207,9 @@ pprTyCon = ppr
 pprDataCon :: Name -> SDoc
 pprDataCon = ppr
 
+instanceToAdd :: [String]
+instanceToAdd = ["ToJSON","FromJSON","toJSON","fromJSON","toEncoding","toXML","ToXml","toXml","fromXml","FromXml","ToCybsXml","toCybsXml"]
+
 collectTypeInfoParser :: [CommandLineOption] -> ModSummary -> HsParsedModule -> Hsc HsParsedModule
 collectTypeInfoParser opts modSummary hpm = do
     let prefixPath = "./.juspay/api-contract/"
@@ -217,8 +220,10 @@ collectTypeInfoParser opts modSummary hpm = do
         path = (intercalate "/" . init . splitOn "/") modulePath
     liftIO $ createDirectoryIfMissing True path
     typesInThisModule <- liftIO $ toList $ mapM (pure . getTypeInfo) (fromList $ hsmodDecls hm_module)
+    typesToInstancesPresent <- liftIO $ toList $ mapM (getInstancesInfo) (fromList $ hsmodDecls hm_module)
+    (shouldAddTypes :: [String]) <- foldM (\acc (inst,type_) -> if inst `Prelude.elem` instanceToAdd then pure $ acc <> [type_] else pure $ acc) [] (Prelude.concat typesToInstancesPresent)
     let (srcSpansHM :: HM.KeyMap SrcSpan) = HM.fromList $ map (\(srcSpan,a,_) -> (HM.fromString a, srcSpan)) $ Prelude.concat typesInThisModule
-        (typeVsFields :: HM.KeyMap TypeRule) = HM.fromList $ map (\(_,a,b) -> (HM.fromString a, b)) $ Prelude.concat typesInThisModule
+        (typeVsFields :: HM.KeyMap TypeRule) = HM.fromList $ Prelude.filter (\(typeName,_) -> (HM.toString typeName) `Prelude.elem` shouldAddTypes) $ map (\(_,a,b) -> (HM.fromString a, b)) $ Prelude.concat typesInThisModule
     if generateTypesRules
         then
             liftIO $ DBS.writeFile (modulePath <> ".yaml") (YAML.encode typeVsFields)
@@ -230,12 +235,12 @@ collectTypeInfoParser opts modSummary hpm = do
                                             let srcSpan = fromJust $ HM.lookup typeName srcSpansHM
                                             errorList <- runFieldNameAndTypeRule (HM.toString typeName) (caseType rules) (dataConstructors rules) (dataConstructors typeRule)
                                             pure $ map (\x -> (srcSpan,x)) $ errorList
-                                        Nothing -> pure [(moduleSrcSpan,(MISSNNG_TYPE (HM.toString typeName)))]
+                                        Nothing -> pure [(moduleSrcSpan,(MISSING_TYPE (HM.toString typeName)))]
                             ) (fromList $ HM.toList typeRules)
             errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat errors
             if (not $ Prelude.null $ errorsNubbed)
                 then do
-                    errorMessages <- pure $ listToBag $ map (\(srcSpan,errorMessage) -> ParseError.mkErr srcSpan reallyAlwaysQualify (ParseError.mkDecorated [docToSDoc $ Pretty.text $ show errorMessage])) errorsNubbed
+                    errorMessages <- pure $ listToBag $ map (\(srcSpan,errorMessage) -> ParseError.mkErr srcSpan reallyAlwaysQualify (ParseError.mkDecorated [docToSDoc $ Pretty.text $ generateErrorMessage (modulePath <> ".yaml") errorMessage])) errorsNubbed
                     ParseError.throwErrors errorMessages
                 else pure ()
     pure hpm
@@ -275,9 +280,15 @@ collectInstanceInfo opts modSummary tcEnv = do
                                                                         map (\y ->
                                                                                     if y `Prelude.elem` fieldsList inst
                                                                                         then mempty
-                                                                                        else [(instanceSpan,(MISSING_FIELD_IN_INSTANCE (HM.toString typeName) x y))]
+                                                                                        else [(instanceSpan,(MISSING_FIELD_IN_INSTANCE_CODE (HM.toString typeName) x y))]
                                                                             ) (fieldsList ruleInst)
-                                                            in typeOfInstanceCheck <> (Prelude.concat $ fieldListCheck)
+                                                                fieldListCheckInverse =
+                                                                        map (\y ->
+                                                                                    if y `Prelude.elem` fieldsList ruleInst
+                                                                                        then mempty
+                                                                                        else [(instanceSpan,(MISSING_FIELD_IN_INSTANCE_RULES (HM.toString typeName) x y))]
+                                                                            ) (fieldsList inst)
+                                                            in typeOfInstanceCheck <> (Prelude.concat $ fieldListCheck <> fieldListCheckInverse)
                                                         Nothing -> [(moduleSrcSpan, (MISSING_INSTANCE (HM.toString typeName) x))]
                                                 ) $ Map.toList instancesMap
                                     in pure $ Prelude.concat errors
@@ -285,7 +296,7 @@ collectInstanceInfo opts modSummary tcEnv = do
             errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat errors
             if (not $ Prelude.null $ errorsNubbed)
                 then do
-                    TCError.addErrs $ map (\(srcSpan,errorMessage) -> (srcSpan,docToSDoc $ Pretty.text $ show errorMessage)) errorsNubbed
+                    TCError.addErrs $ map (\(srcSpan,errorMessage) -> (srcSpan,docToSDoc $ Pretty.text $ generateErrorMessage (modulePath <> ".yaml") errorMessage)) errorsNubbed
                 else pure ()
     pure tcEnv
 
@@ -293,7 +304,7 @@ processInstance :: LHsBindLR GhcTc GhcTc -> IO [(SrcSpan,String,String,InstanceF
 processInstance (L l (FunBind _ id' matches _)) = do
   let instanceFunctionName = replace "$_in$" "" $ nameStableString $ getName id'
       stmts = (mg_alts matches) ^? biplateRef :: [LHsExpr GhcTc]
-      possibleFields = map (\(_,val) -> getLit $ unXRec @(GhcTc) val) $ Prelude.filter (\(constr,_) -> constr `Prelude.elem` ["HsLit"] ) $ map ((\x -> (show $ toConstr $ unLoc x,x))) (stmts)
+      possibleFields = Data.List.nub $ map (\(_,val) -> getLit $ unXRec @(GhcTc) val) $ Prelude.filter (\(constr,_) -> constr `Prelude.elem` ["HsLit"] ) $ map ((\x -> (show $ toConstr $ unLoc x,x))) (stmts)
       typeSignature = getAppliedOnTypeName instanceFunctionName $ varType (unLoc id')
   if isJust typeSignature then
     if Prelude.null possibleFields
@@ -318,7 +329,29 @@ getAppliedOnTypeName :: String -> Type -> Maybe String
 getAppliedOnTypeName "parseJSON" (FunTy _ _ arg (TyConApp _ types)) =  Just $ (showSDocUnsafe $ ppr $ Prelude.last types)
 getAppliedOnTypeName "toJSON" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
 getAppliedOnTypeName "toEncoding" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
+getAppliedOnTypeName "toXml" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
+getAppliedOnTypeName "fromXml" (FunTy _ _ arg (TyConApp _ types)) = Just $ (showSDocUnsafe $ ppr $ Prelude.last types)
+getAppliedOnTypeName "fromXml" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
+getAppliedOnTypeName "toCybsXml" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
+getAppliedOnTypeName "toXML" (FunTy _ _ arg res) = Just $ (showSDocUnsafe $ ppr arg)
 getAppliedOnTypeName _ _ = Nothing
+
+getInstancesInfo :: LHsDecl GhcPs -> IO [(String,String)]
+getInstancesInfo (L l (DerivD _ (DerivDecl{deriv_type=derivType}))) =
+    case sig_body $ unXRec @(GhcPs) $ hswc_body $ derivType of
+        (L _ (HsAppTy _ ty1 ty2)) -> pure $ [(showSDocUnsafe $ ppr ty1,showSDocUnsafe $ ppr ty2)]
+        (L _ x) -> do
+            print $ toConstr x
+            pure mempty
+getInstancesInfo (L l (InstD _ (ClsInstD _ (ClsInstDecl{cid_poly_ty=cidPolyTy})))) =
+        case sig_body $ unXRec @(GhcPs) $ cidPolyTy of
+            (L _ (HsAppTy _ ty1 ty2)) -> pure $ [(showSDocUnsafe $ ppr ty1,showSDocUnsafe $ ppr ty2)]
+            (L _ x) -> do
+                print $ toConstr x
+                pure mempty
+-- getInstancesInfo (L l (InstD _ (DataFamInstD _ dfidInst))) = dfidInst ^? biplateRef :: [HsSigType GhcPs]
+-- getInstancesInfo (L l (InstD _ (TyFamInstD _ tfidInst))) = tfidInst ^? biplateRef :: [HsSigType GhcPs]
+getInstancesInfo _ = pure mempty
 
 getTypeInfo :: LHsDecl GhcPs -> [(SrcSpan,String,TypeRule)]
 getTypeInfo (L l (TyClD _ (DataDecl _ lname _ _ defn))) =
@@ -430,6 +463,7 @@ runFieldNameAndTypeRule typeName caseType rules codeExtract = do
                                     Just val -> do
                                         res <- toList $ mapM (checkCaseType caseType) (fromList $ Map.keys $ fields' val)
                                         res' <- checkIfAllFieldsArePresent (Map.keys $ fields' x) (Map.keys $ fields' val)
+                                        res' <- checkIfAllFieldsArePresentInverse (Map.keys $ fields' val) (Map.keys $ fields' x)
                                         res'' <- checkAllFieldTypes (HM.fromList $ map (\(a,b) -> (HM.fromString a, b)) $ Map.toList $ fields' x) (HM.fromList $ map (\(a,b) -> (HM.fromString a, b)) $ Map.toList $ fields' val)
                                         pure $ acc <> (Prelude.concat res) <> res' <> res''
                                     Nothing -> pure $ acc <> [(MISSING_DATACON  dataConName  typeName)]
@@ -438,7 +472,13 @@ runFieldNameAndTypeRule typeName caseType rules codeExtract = do
         checkIfAllFieldsArePresent :: [String] -> [String] -> IO [ApiContractError]
         checkIfAllFieldsArePresent fromRules fromCode =
             foldM (\acc x ->
-                    if x `Prelude.elem` fromCode then pure acc else pure $ acc <> [(MISSING_FIELD x typeName)]
+                    if x `Prelude.elem` fromCode then pure acc else pure $ acc <> [(MISSING_FIELD_IN_CODE x typeName)]
+                ) mempty (fromRules)
+
+        checkIfAllFieldsArePresentInverse :: [String] -> [String] -> IO [ApiContractError]
+        checkIfAllFieldsArePresentInverse fromRules fromCode =
+            foldM (\acc x ->
+                    if x `Prelude.elem` fromCode then pure acc else pure $ acc <> [(MISSING_FIELD_IN_RULES x typeName)]
                 ) mempty (fromRules)
 
         checkAllFieldTypes :: HM.KeyMap String -> HM.KeyMap String -> IO [ApiContractError]
@@ -448,7 +488,7 @@ runFieldNameAndTypeRule typeName caseType rules codeExtract = do
                             Just val -> if val == _type
                                             then pure acc
                                             else pure $ acc <> [(TYPE_MISMATCH (HM.toString _fieldName) (_type) (val) typeName)]
-                            Nothing -> pure $ acc <> [(MISSING_FIELD (HM.toString _fieldName) typeName)]
+                            Nothing -> pure $ acc <> [(MISSING_FIELD_IN_CODE (HM.toString _fieldName) typeName)]
                     ) mempty (HM.toList fromRules)
 
         isSnakeCase :: String -> Bool

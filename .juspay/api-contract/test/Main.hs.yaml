@@ -27,6 +27,7 @@ RefundAttempt:
       - ref
       - error_message
       - error_code
+      - last_modified
       typeOfInstance: Custom
     toJSON:
       fieldsList: []

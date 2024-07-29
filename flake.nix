@@ -6,12 +6,15 @@
     haskell-flake.url = "github:srid/haskell-flake";
     classyplate.url = "github:eswar2001/classyplate/a360f56820df6ca5284091f318bcddcd3e065243";
     references.url = "github:eswar2001/references/120ae7826a7af01a527817952ad0c3f5ef08efd0";
-    large-records = { 
+    large-records = {
       url = "github:eswar2001/large-records/b60bcb312c7d55f1d638aa1a5143696e6586e76d";
     };
     streamly = {
       url = "github:composewell/streamly/12d85026291d9305f93f573d284d0d35abf40968";
       flake = false;
+    };
+    ghc-hasfield-plugin = {
+      url = "github:eswar2001/ghc-hasfield-plugin/a7c681a75820d2543774cc2d816a988e6022e0a7";
     };
   };
   outputs = inputs@{ self, nixpkgs, flake-parts, ... }:
@@ -42,12 +45,17 @@
           # basePackages = pkgs.haskell.packages.ghc8107;
           basePackages = pkgs.haskell.packages.ghc92;
           imports = [
-            inputs.references.haskellFlakeProjectModules.output
-            inputs.classyplate.haskellFlakeProjectModules.output
-            inputs.large-records.haskellFlakeProjectModules.output
           ];
           packages = {
-            streamly-core.source = inputs.streamly + /core;
+          streamly-core.source = inputs.streamly + /core;
+          large-records.source = inputs.large-records + /large-records;
+          large-generics.source = inputs.large-records + /large-generics;
+          large-anon.source = inputs.large-records + /large-anon;
+          typelet.source = inputs.large-records + /typelet;
+          beam-large-records.source = inputs.large-records + /beam-large-records;
+          ghc-hasfield-plugin.source = inputs.ghc-hasfield-plugin;
+          references.source = inputs.references;
+          classyplate.source = inputs.classyplate;
           };
           settings = {
           };

@@ -1,0 +1,34 @@
+RefundAttempt:
+  caseType: null
+  dataConstructors:
+    RefundAttempt:
+      fields':
+        created: Text
+        error_code: Maybe Value
+        error_message: Maybe Text
+        id': Maybe Text
+        last_modified: Maybe Text
+        ref: Maybe Text
+      sumTypes: []
+  instances:
+    parseJSON:
+      fieldsList:
+      - id'
+      - created
+      - ref
+      - error_message
+      - error_code
+      - last_modified
+      typeOfInstance: Custom
+    toEncoding:
+      fieldsList:
+      - id'
+      - created
+      - ref
+      - error_message
+      - error_code
+      typeOfInstance: Custom
+    toJSON:
+      fieldsList: []
+      typeOfInstance: Derived
+  typeKind: data

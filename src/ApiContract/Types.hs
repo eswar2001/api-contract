@@ -9,7 +9,7 @@
 
 module ApiContract.Types where
 
-import Data.Aeson
+import Data.Aeson (ToJSON,FromJSON)
 import GHC.Generics (Generic)
 import qualified Data.Map as Map
 import GHC.Hs (SrcSpanAnnA)

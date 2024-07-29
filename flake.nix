@@ -65,7 +65,7 @@
         };
 
         # haskell-flake doesn't set the default package, but you can do it here.
-        packages.default = self'.packages.fdep;
+        packages.default = self'.packages.api-contract;
       };
     };
 }

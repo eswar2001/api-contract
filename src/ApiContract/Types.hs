@@ -69,9 +69,13 @@ data ApiContractError =
     -- typeName fieldName caseType
     | FIELD_CASE_MISMATCH String String CaseType
     -- typeName
-    | MISSING_TYPE String
+    | MISSING_TYPE_CODE String
+    -- typeName ruleYAML
+    | MISSING_TYPE_IN_RULE String String
     -- typeName instanceName
-    | MISSING_INSTANCE String String
+    | MISSING_INSTANCE_IN_CODE String String
+    -- typeName instanceName ruleYAML
+    | MISSING_INSTANCE_IN_RULES String String String
     -- typeName instanceName typeOfInsance
     | TYPE_OF_INSTANCE_CHANGED String String TypeOfInstance
     -- typeName instanceName fieldName
@@ -99,14 +103,22 @@ generateErrorMessage yamlFilePath (FIELD_CASE_MISMATCH typeName fieldName caseTy
     "Error: Field name case mismatch for field '" ++ fieldName ++ "' in type '" ++ typeName ++ "'. Expected case: " ++ show caseType ++ ".\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++
     "\n\tChange the field name to follow the " ++ show caseType ++ " convention under the appropriate type's fields section."
-generateErrorMessage yamlFilePath (MISSING_TYPE typeName) =
+generateErrorMessage yamlFilePath (MISSING_TYPE_CODE typeName) =
     "Error: The type '" ++ typeName ++ "' is missing.\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++
     "\n\tAdd the type '" ++ typeName ++ "' to the types section."
-generateErrorMessage yamlFilePath (MISSING_INSTANCE typeName instanceName) =
-    "Error: The instance '" ++ instanceName ++ "' is missing for type '" ++ typeName ++ "'.\n\n" ++
+generateErrorMessage yamlFilePath (MISSING_TYPE_IN_RULE typeName yamlRule) =
+    "Error: The type '" ++ typeName ++ "' is missing in the rules.\n\n" ++
+    "\tYou should add the rule in the file: " ++ yamlFilePath ++
+    "\n\tAdd the type '" ++ typeName ++ "' to the types section." ++ "\n\n" ++ yamlRule
+generateErrorMessage yamlFilePath (MISSING_INSTANCE_IN_CODE typeName instanceName) =
+    "Error: The instance '" ++ instanceName ++ "' is missing for type '" ++ typeName ++ "'in the code.\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++
     "\n\tAdd the instance '" ++ instanceName ++ "' under the appropriate type's instances section."
+generateErrorMessage yamlFilePath (MISSING_INSTANCE_IN_RULES typeName instanceName yamlRule) =
+    "Error: The instance '" ++ instanceName ++ "' is missing for type '" ++ typeName ++ "' in the rules.\n\n" ++
+    "\tYou can update the change in the file: " ++ yamlFilePath ++
+    "\n\tAdd the instance '" ++ instanceName ++ "' under the appropriate type's instances section." ++ "\n\n" ++ yamlRule
 generateErrorMessage yamlFilePath (TYPE_OF_INSTANCE_CHANGED typeName instanceName typeOfInstance) =
     "Error: The type of instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "' has changed to " ++ show typeOfInstance ++ ".\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++

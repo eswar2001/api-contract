@@ -236,9 +236,10 @@ collectTypeInfoParser opts modSummary hpm = do
                                             let srcSpan = fromJust $ HM.lookup typeName srcSpansHM
                                             errorList <- runFieldNameAndTypeRule (HM.toString typeName) (caseType rules) (dataConstructors rules) (dataConstructors typeRule)
                                             pure $ map (\x -> (srcSpan,x)) $ errorList
-                                        Nothing -> pure [(moduleSrcSpan,(MISSING_TYPE (HM.toString typeName)))]
+                                        Nothing -> pure [(moduleSrcSpan,(MISSING_TYPE_CODE (HM.toString typeName)))]
                             ) (fromList $ HM.toList typeRules)
-            errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat errors
+            let missingTypesInRulesWithAeson = mempty--map (\x -> if HM.member (HM.fromString x) typeRules then mempty else [(moduleSrcSpan,(MISSING_TYPE_IN_RULE (x) (maybe (mempty) (\y -> (unpack . decodeUtf8 . YAML.encode) $ Map.fromList [(x,y)]) $ HM.lookup (HM.fromString x) typeVsFields)))] ) shouldAddTypes
+            errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat (errors <> missingTypesInRulesWithAeson)
             if (not $ Prelude.null $ errorsNubbed)
                 then do
                     errorMessages <- pure $ listToBag $ map (\(srcSpan,errorMessage) -> ParseError.mkErr srcSpan reallyAlwaysQualify (ParseError.mkDecorated [docToSDoc $ Pretty.text $ generateErrorMessage (modulePath <> ".yaml") errorMessage])) errorsNubbed
@@ -257,14 +258,14 @@ collectInstanceInfo opts modSummary tcEnv = do
     (instanceSrcSpansHM :: HM.KeyMap SrcSpan) <- pure $ HM.fromList $ map (\(srcSpan,typeName,instanceName,_) -> (HM.fromString (typeName <> "--" <> instanceName), srcSpan)) $ Prelude.concat typeInstances
     (instanceTypeHM :: HM.KeyMap InstanceFromTC) <- pure $ HM.fromList $ map (\(_,typeName,instanceName,x) -> (HM.fromString (typeName <> "--" <> instanceName), x)) $ Prelude.concat typeInstances
     (typeRules :: HM.KeyMap TypeRule) <- liftIO $ fetchRules (modulePath <> ".yaml")
+    let updatedTypesRules = foldl' (\hm (_,typeName,instanceName,x) ->
+                                case HM.lookup (HM.fromString typeName) hm of
+                                    Just v  -> HM.insert (HM.fromString typeName) (v{instances = Map.insert instanceName x (instances v)}) hm
+                                    Nothing -> hm
+                            ) typeRules $ Prelude.concat typeInstances
     if generateTypesRules
         then do
             when (generateTypesRules) $ liftIO $ print "dumping rules"
-            let updatedTypesRules = foldl' (\hm (_,typeName,instanceName,x) ->
-                                            case HM.lookup (HM.fromString typeName) hm of
-                                                Just v  -> HM.insert (HM.fromString typeName) (v{instances = Map.insert instanceName x (instances v)}) hm
-                                                Nothing -> hm
-                                        ) typeRules $ Prelude.concat typeInstances
             liftIO $ DBS.writeFile (modulePath <> ".yaml") (YAML.encode updatedTypesRules)
         else do
             errors :: [[(SrcSpan,ApiContractError)]] <- liftIO $ toList $ mapM (\(typeName,rules) ->
@@ -290,11 +291,21 @@ collectInstanceInfo opts modSummary tcEnv = do
                                                                                         else [(instanceSpan,(MISSING_FIELD_IN_INSTANCE_RULES (HM.toString typeName) x y))]
                                                                             ) (fieldsList inst)
                                                             in typeOfInstanceCheck <> (Prelude.concat $ fieldListCheck <> fieldListCheckInverse)
-                                                        Nothing -> [(moduleSrcSpan, (MISSING_INSTANCE (HM.toString typeName) x))]
+                                                        Nothing -> [(moduleSrcSpan, (MISSING_INSTANCE_IN_CODE (HM.toString typeName) x))]
                                                 ) $ Map.toList instancesMap
                                     in pure $ Prelude.concat errors
                             ) (fromList $ HM.toList typeRules)
-            errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat errors
+            let missingInstanceConstraintsInRules = map (\(k,v) ->
+                                                        let typeName = HM.fromString $ Prelude.head $ splitOn "--" $ HM.toString k
+                                                            instanceName = Prelude.last $ splitOn "--" $ HM.toString k
+                                                        in case HM.lookup typeName typeRules of
+                                                            Just rules ->
+                                                                case Map.lookup instanceName $ instances rules of
+                                                                    Just val -> mempty
+                                                                    Nothing -> [(moduleSrcSpan, (MISSING_INSTANCE_IN_RULES (HM.toString typeName) (instanceName) (maybe (mempty) (\y -> (unpack . decodeUtf8 . YAML.encode) $ Map.fromList [((HM.toString typeName),y)]) $ HM.lookup typeName updatedTypesRules)))]
+                                                            Nothing -> mempty
+                                                    ) $ HM.toList instanceTypeHM
+            errorsNubbed :: [(SrcSpan,ApiContractError)] <- pure $ Data.List.nub $ Prelude.concat (errors <> missingInstanceConstraintsInRules)
             if (not $ Prelude.null $ errorsNubbed)
                 then do
                     TCError.addErrs $ map (\(srcSpan,errorMessage) -> (srcSpan,docToSDoc $ Pretty.text $ generateErrorMessage (modulePath <> ".yaml") errorMessage)) errorsNubbed

@@ -22,6 +22,20 @@ import Data.Data
 main :: IO ()
 main = putStrLn "Test suite not yet implemented."
 
+data RefundAttempt' = RefundAttempt'
+ { id''                :: Maybe Text
+ , created''           :: Text
+ , ref''               :: Maybe Text
+ , error_message''     :: Maybe Text
+ , error_code''        :: Maybe Value
+ , last_modified''     :: Maybe Text
+ }
+ deriving (Show, Eq, Generic)
+
+deriving instance Data RefundAttempt'
+deriving instance ToJSON RefundAttempt'
+deriving instance FromJSON RefundAttempt'
+
 data RefundAttempt = RefundAttempt
  { id'                :: Maybe Text
  , created           :: Text

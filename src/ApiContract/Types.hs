@@ -126,8 +126,8 @@ generateErrorMessage yamlFilePath (TYPE_OF_INSTANCE_CHANGED typeName instanceNam
 generateErrorMessage yamlFilePath (MISSING_FIELD_IN_INSTANCE_CODE typeName instanceName fieldName) =
     "Error: The field '" ++ fieldName ++ "' is missing in the instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "'.\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++
-    "\n\tAdd the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."
+    "\n\tAdd/remove the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."
 generateErrorMessage yamlFilePath (MISSING_FIELD_IN_INSTANCE_RULES typeName instanceName fieldName) =
     "Error: The field '" ++ fieldName ++ "' is missing in rules in instance '" ++ instanceName ++ "' for type '" ++ typeName ++ "'.\n\n" ++
     "\tYou can update the change in the file: " ++ yamlFilePath ++
-    "\n\tAdd the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."
+    "\n\tAdd/remove the field '" ++ fieldName ++ "' under the appropriate instance's fieldsList section."
